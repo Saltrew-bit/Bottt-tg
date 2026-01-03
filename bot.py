@@ -1,8 +1,8 @@
 import os
+import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
-from aiohttp import web
 
 API_TOKEN = os.getenv("API_TOKEN", "8219073859:AAH2qL0-w9mQTxGOFNqv-svRALHFQ8MDorw")
 bot = Bot(token=API_TOKEN)
@@ -32,15 +32,5 @@ async def rules(cq: types.CallbackQuery):
 async def new_ad(cq: types.CallbackQuery):
     await cq.message.answer("Функция подачи объявлений пока отключена (демо).")
 
-async def handle(request):
-    data = await request.json()
-    update = types.Update(**data)
-    await dp.feed_update(update)
-    return web.Response(text="ok")
-
-app = web.Application()
-app.router.add_post("/bot", handle)
-
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 8080))
-    web.run_app(app, port=port)
+    asyncio.run(dp.start_polling(bot))
