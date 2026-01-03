@@ -1,8 +1,8 @@
 import asyncio
 import logging
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto
 from aiogram.filters import Command
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto
 
 API_TOKEN = "8219073859:AAH2qL0-w9mQTxGOFNqv-svRALHFQ8MDorw"
 ADMIN_ID = 1688416529
@@ -19,9 +19,8 @@ pending_ads = {}
 @dp.message(Command(commands=["start"]))
 async def start(msg: types.Message):
     await msg.answer(
-        f"Здравствуйте, я официальный бот канала AutoHub62!\n"
-        f"Все объявления публикуются в нашем канале {CHANNEL_ID}\n"
-        f"Используйте кнопки ниже, чтобы подать объявление или ознакомиться с правилами."
+        "Здравствуйте, я официальный бот канала AutoHub62!\n"
+        f"Все объявления публикуются в нашем канале {CHANNEL_ID}"
     )
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton("Подать объявление", callback_data="new_ad")],
@@ -43,37 +42,6 @@ async def handle_buttons(cq: types.CallbackQuery):
     elif cq.data == "new_ad":
         ads_data[cq.from_user.id] = {"step": 1, "data": {}}
         await cq.message.answer("Введите марку и модель автомобиля:")
-
-@dp.callback_query(lambda c: c.data.startswith("publish_") or c.data.startswith("delete_"))
-async def handle_admin_actions(cq: types.CallbackQuery):
-    if cq.from_user.id != ADMIN_ID:
-        await cq.answer("Только админ может управлять объявлениями.")
-        return
-    data = cq.data
-    user_id = int(data.split("_")[1])
-    if data.startswith("publish_"):
-        ad = pending_ads.get(user_id)
-        if ad:
-            text = (
-                f"🚗 {ad['model']}\n"
-                f"📅 {ad['year']}\n"
-                f"💰 {ad['price']} ₽\n"
-                f"📏 {ad['mileage']} км\n"
-                f"📞 {ad['contact']}"
-            )
-            media = [InputMediaPhoto(pid) for pid in ad.get("photos", [])]
-            if media:
-                await bot.send_media_group(CHANNEL_ID, media)
-            await bot.send_message(CHANNEL_ID, text)
-            del pending_ads[user_id]
-            await cq.message.edit_reply_markup()
-            await cq.answer("Объявление опубликовано!")
-        else:
-            await cq.answer("Объявление не найдено.")
-    elif data.startswith("delete_"):
-        pending_ads.pop(user_id, None)
-        await cq.message.edit_reply_markup()
-        await cq.answer("Объявление удалено.")
 
 @dp.message()
 async def process_ads(msg: types.Message):
@@ -134,6 +102,37 @@ async def process_ads(msg: types.Message):
         await bot.send_message(ADMIN_ID, text, reply_markup=keyboard)
         await msg.answer("Ваше объявление отправлено на модерацию. Спасибо!")
         del ads_data[user_id]
+
+@dp.callback_query(lambda c: c.data.startswith("publish_") or c.data.startswith("delete_"))
+async def handle_admin_actions(cq: types.CallbackQuery):
+    if cq.from_user.id != ADMIN_ID:
+        await cq.answer("Только админ может управлять объявлениями.")
+        return
+    data = cq.data
+    user_id = int(data.split("_")[1])
+    if data.startswith("publish_"):
+        ad = pending_ads.get(user_id)
+        if ad:
+            text = (
+                f"🚗 {ad['model']}\n"
+                f"📅 {ad['year']}\n"
+                f"💰 {ad['price']} ₽\n"
+                f"📏 {ad['mileage']} км\n"
+                f"📞 {ad['contact']}"
+            )
+            media = [InputMediaPhoto(pid) for pid in ad.get("photos", [])]
+            if media:
+                await bot.send_media_group(CHANNEL_ID, media)
+            await bot.send_message(CHANNEL_ID, text)
+            del pending_ads[user_id]
+            await cq.message.edit_reply_markup()
+            await cq.answer("Объявление опубликовано!")
+        else:
+            await cq.answer("Объявление не найдено.")
+    elif data.startswith("delete_"):
+        pending_ads.pop(user_id, None)
+        await cq.message.edit_reply_markup()
+        await cq.answer("Объявление удалено.")
 
 if __name__ == "__main__":
     asyncio.run(dp.start_polling())
