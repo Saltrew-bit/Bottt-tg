@@ -14,7 +14,7 @@ dp = Dispatcher(bot=bot)
 async def start_handler(msg: types.Message):
     await msg.answer(
         "Здравствуйте, я официальный бот канала AutoHub62!\n"
-        f"Все объявления публикуются в нашем канале {CHANNEL_ID}"
+        f"Все объявления публикуются в канале {CHANNEL_ID}"
     )
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton("Перейти в канал", url=f"https://t.me/{CHANNEL_ID[1:]}")],
