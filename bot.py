@@ -8,7 +8,7 @@ API_TOKEN = os.getenv("API_TOKEN", "8219073859:AAH2qL0-w9mQTxGOFNqv-svRALHFQ8MDo
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 
-@dp.message(Command(commands=["start"]))
+@dp.message(Command("start"))
 async def start(msg: types.Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton("Подать объявление", callback_data="new_ad")],
@@ -39,7 +39,7 @@ async def handle(request):
     return web.Response(text="ok")
 
 app = web.Application()
-app.router.add_post("/bot", handle)  # endpoint для Bothost
+app.router.add_post("/bot", handle)
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8080))
