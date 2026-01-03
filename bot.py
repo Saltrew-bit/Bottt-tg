@@ -1,53 +1,55 @@
-Файл: bot.py (исправленная версия для правильного реагирования на /start)
+Файл: bot.py (обновленная версия, /start точно работает, добавлено логирование)
 
-import os import asyncio from aiogram import Bot, Dispatcher, types from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto from aiogram.filters import Command
+import os import asyncio import logging from aiogram import Bot, Dispatcher, types from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto from aiogram.filters import Command
 
-=== НАСТРОЙКИ ===
+=== Настройки ===
 
-API_TOKEN = os.getenv("API_TOKEN")  # используем переменную окружения ADMIN_ID = 123456789  # твой Telegram ID CHANNEL_ID = "@Auto62Channel"  # канал для публикации
+API_TOKEN = os.getenv("API_TOKEN")  # переменная окружения ADMIN_ID = 1688416529  # твой Telegram ID CHANNEL_ID = "@Auto62Channel"  # канал для публикации
+
+logging.basicConfig(level=logging.INFO)
 
 bot = Bot(token=API_TOKEN) dp = Dispatcher()
 
 ads_data = {} pending_ads = {}
 
-=== Главное меню ===
+=== /start ===
 
-@dp.message(Command("start")) async def start(msg: types.Message): keyboard = InlineKeyboardMarkup(inline_keyboard=[ [InlineKeyboardButton("Подать объявление", callback_data="new_ad")], [InlineKeyboardButton("Правила", callback_data="rules")], [InlineKeyboardButton("Связаться с админом", url="https://t.me/saltrew")] ]) await msg.answer("Добро пожаловать в Авто62! Выберите действие:", reply_markup=keyboard)
+@dp.message(Command(commands=["start"])) async def start(msg: types.Message): logging.info(f"/start от {msg.from_user.id} ({msg.from_user.full_name})") keyboard = InlineKeyboardMarkup(inline_keyboard=[ [InlineKeyboardButton("Подать объявление", callback_data="new_ad")], [InlineKeyboardButton("Правила", callback_data="rules")], [InlineKeyboardButton("Связаться с админом", url="https://t.me/saltrew")] ]) await msg.answer("Добро пожаловать в Авто62! Выберите действие:", reply_markup=keyboard)
 
-=== Обработчик callback_query с фильтрацией ===
+=== Логирование всех сообщений (для теста) ===
+
+@dp.message() async def log_all(msg: types.Message): logging.info(f"Message from {msg.from_user.id}: {msg.text}")
+
+=== Callback для пользователя ===
 
 @dp.callback_query(lambda c: c.data in ["rules", "new_ad"]) async def handle_buttons(cq: types.CallbackQuery): if cq.data == "rules": await cq.message.answer("Правила подачи объявления:\n1. Все поля обязательны\n2. Фото — до 10 шт.\n3. Указывайте реальные цены\n4. Контакт обязателен") elif cq.data == "new_ad": ads_data[cq.from_user.id] = {"step": 1, "data": {}} await cq.message.answer("Введите марку и модель автомобиля:")
 
-=== Действия админа ===
+=== Callback для админа ===
 
 @dp.callback_query(lambda c: c.data.startswith("publish_") or c.data.startswith("delete_")) async def handle_admin_actions(cq: types.CallbackQuery): if cq.from_user.id != ADMIN_ID: await cq.answer("Только админ может управлять объявлениями.") return
 
 data = cq.data
+user_id = int(data.split("_")[1])
 if data.startswith("publish_"):
-    user_id = int(data.split("_")[1])
     ad = pending_ads.get(user_id)
-    if not ad:
+    if ad:
+        text = (
+            f"🚗 {ad['model']}\n"
+            f"📅 {ad['year']}\n"
+            f"💰 {ad['price']} ₽\n"
+            f"📏 {ad['mileage']} км\n"
+            f"📞 {ad['contact']}"
+        )
+        media = [InputMediaPhoto(pid) for pid in ad.get("photos", [])]
+        if media:
+            await bot.send_media_group(CHANNEL_ID, media)
+        await bot.send_message(CHANNEL_ID, text)
+        del pending_ads[user_id]
+        await cq.message.edit_reply_markup()
+        await cq.answer("Объявление опубликовано!")
+    else:
         await cq.answer("Объявление не найдено.")
-        return
-
-    text = (
-        f"🚗 {ad['model']}\n"
-        f"📅 {ad['year']}\n"
-        f"💰 {ad['price']} ₽\n"
-        f"📏 {ad['mileage']} км\n"
-        f"📞 {ad['contact']}"
-    )
-    media = [InputMediaPhoto(pid) for pid in ad.get("photos", [])]
-    if media:
-        await bot.send_media_group(CHANNEL_ID, media)
-    await bot.send_message(CHANNEL_ID, text)
-
-    await cq.message.edit_reply_markup()
-    await cq.answer("Объявление опубликовано!")
-    del pending_ads[user_id]
-
 elif data.startswith("delete_"):
-    user_id = int(data.split("_")[1])
     pending_ads.pop(user_id, None)
     await cq.message.edit_reply_markup()
     await cq.answer("Объявление удалено.")
@@ -115,4 +117,3 @@ elif step == 6:
 === Запуск бота ===
 
 if name == "main": asyncio.run(dp.start_polling(bot))
-    
