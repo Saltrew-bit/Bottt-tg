@@ -1,8 +1,8 @@
-import asyncio
 import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command, Text
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto
+from aiogram import executor
 
 API_TOKEN = "8219073859:AAH2qL0-w9mQTxGOFNqv-svRALHFQ8MDorw"
 ADMIN_ID = 1688416529
@@ -16,26 +16,17 @@ dp = Dispatcher(bot)
 ads_data = {}
 pending_ads = {}
 
-@dp.message(Command(commands=["start"]))
+@dp.message(Command("start"))
 async def start_handler(msg: types.Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton("Перейти в канал", url=f"https://t.me/{CHANNEL_ID[1:]}")],
         [InlineKeyboardButton("Подать объявление", callback_data="new_ad")],
         [InlineKeyboardButton("Правила", callback_data="rules")],
         [InlineKeyboardButton("Связаться с админом", url="https://t.me/saltrew")]
     ])
-    await msg.answer(
-        "Здравствуйте, я официальный бот канала AutoHub62!\n"
-        f"Все объявления публикуются в канале {CHANNEL_ID}"
-    )
+    await msg.answer("Здравствуйте, я официальный бот канала AutoHub62!")
     await msg.answer("Выберите действие:", reply_markup=keyboard)
 
-@dp.callback_query(Text(startswith="new_ad"))
-async def new_ad_handler(cq: types.CallbackQuery):
-    ads_data[cq.from_user.id] = {"step": 1, "data": {}}
-    await cq.message.answer("Введите марку и модель автомобиля:")
-
-@dp.callback_query(Text(startswith="rules"))
+@dp.callback_query(Text("rules"))
 async def rules_handler(cq: types.CallbackQuery):
     await cq.message.answer(
         "Правила подачи объявления:\n"
@@ -45,15 +36,18 @@ async def rules_handler(cq: types.CallbackQuery):
         "4. Контакт обязателен"
     )
 
+@dp.callback_query(Text("new_ad"))
+async def new_ad_handler(cq: types.CallbackQuery):
+    ads_data[cq.from_user.id] = {"step": 1, "data": {}}
+    await cq.message.answer("Введите марку и модель автомобиля:")
+
 @dp.message()
 async def ads_message_handler(msg: types.Message):
     user_id = msg.from_user.id
     if user_id not in ads_data:
         return
-
     step = ads_data[user_id]["step"]
     ad = ads_data[user_id]["data"]
-
     if step == 1:
         ad["model"] = msg.text
         ads_data[user_id]["step"] = 2
@@ -87,7 +81,6 @@ async def ads_message_handler(msg: types.Message):
         ad["contact"] = msg.text
         ads_data[user_id]["step"] = 7
         pending_ads[user_id] = ad
-
         text = (
             f"Новое объявление от {msg.from_user.full_name}:\n\n"
             f"🚗 {ad['model']}\n"
@@ -96,18 +89,10 @@ async def ads_message_handler(msg: types.Message):
             f"📏 {ad['mileage']} км\n"
             f"📞 {ad['contact']}"
         )
-
         media = [InputMediaPhoto(pid) for pid in ad.get("photos", [])]
-
         if media:
             await bot.send_media_group(ADMIN_ID, media)
-
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton("✅ Опубликовать", callback_data=f"publish_{user_id}")],
-            [InlineKeyboardButton("❌ Удалить", callback_data=f"delete_{user_id}")]
-        ])
-
-        await bot.send_message(ADMIN_ID, text, reply_markup=keyboard)
+        await bot.send_message(ADMIN_ID, text)
         await msg.answer("Ваше объявление отправлено на модерацию. Спасибо!")
         del ads_data[user_id]
 
@@ -116,7 +101,6 @@ async def publish_handler(cq: types.CallbackQuery):
     if cq.from_user.id != ADMIN_ID:
         await cq.answer("Только админ может управлять объявлениями.")
         return
-
     user_id = int(cq.data.split("_")[1])
     ad = pending_ads.get(user_id)
     if ad:
@@ -140,15 +124,11 @@ async def delete_handler(cq: types.CallbackQuery):
     if cq.from_user.id != ADMIN_ID:
         await cq.answer("Только админ может управлять объявлениями.")
         return
-
     user_id = int(cq.data.split("_")[1])
     pending_ads.pop(user_id, None)
     await cq.message.edit_reply_markup()
-    await cq.answer("Объявление удалено.")
-
-async def main():
-    print("Бот AutoHub62 запущен...")
-    await dp.start_polling()
+    await cq.answer("Объявление удалено!")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    print("Бот AutoHub62 запущен...")
+    executor.start_polling(dp, skip_updates=True)
