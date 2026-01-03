@@ -10,11 +10,12 @@ dp = Dispatcher()
 
 @dp.message(CommandStart())
 async def start(message: types.Message):
-    # Удаляем сообщение /start пользователя
-    try:
-        await message.delete()
-    except:
-        pass  # Если нет прав или уже удалено
+    # Удаляем только /start в личном чате
+    if message.chat.type == "private":
+        try:
+            await message.delete()
+        except Exception:
+            pass
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
