@@ -10,6 +10,12 @@ dp = Dispatcher()
 
 @dp.message(CommandStart())
 async def start(message: types.Message):
+    # Удаляем сообщение /start пользователя
+    try:
+        await message.delete()
+    except:
+        pass  # Если нет прав или уже удалено
+
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="🚗 Подать объявление", callback_data="add_ad")],
@@ -19,7 +25,7 @@ async def start(message: types.Message):
     )
 
     await message.answer(
-        "👋 **Здравствуйте!**\n\n"
+        "👋 Здравствуйте!\n\n"
         "Я официальный бот канала **AutoHub62**.\n"
         "Помогаю удобно размещать объявления о продаже автомобилей.\n\n"
         "Выберите действие ниже ⬇️",
