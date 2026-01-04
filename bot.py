@@ -31,10 +31,13 @@ async def start(message: types.Message):
     )
 
     await message.answer(
-        "👋 Здравствуйте!\n\n"
-        "Я официальный бот канала **AutoHub62**.\n"
-        "Помогаю удобно размещать объявления о продаже автомобилей.\n\n"
-        "Выберите действие ниже ⬇️",
+        "🚘 *AutoHub62 — продажа автомобилей*\n\n"
+        "Здесь вы можете быстро и удобно подать объявление\n"
+        "о продаже автомобиля в Рязани и области.\n\n"
+        "⏱ Подача занимает 2–3 минуты\n"
+        "📸 До 10 фотографий\n"
+        "🛡 Все объявления проходят модерацию\n\n"
+        "Выберите действие ⬇️",
         reply_markup=keyboard,
         parse_mode="Markdown"
     )
@@ -43,15 +46,13 @@ async def start(message: types.Message):
 @dp.callback_query(lambda c: c.data == "rules")
 async def rules(callback: types.CallbackQuery):
     await callback.message.answer(
-        "📜 *Правила размещения объявлений:*\n\n"
-        "1. Идеально\n"
-        "2. Я бы дополнил как-нибудь\n"
-        "3. Шикарно\n"
-        "4. Ахуенно\n"
-        "5. ахуенно\n\n"
-        "• Авто в Рязани или области\n"
-        "• Реальная цена\n"
-        "• Контакт обязателен",
+        "📜 *Правила размещения объявлений*\n\n"
+        "1️⃣ Автомобиль находится в Рязани или области\n"
+        "2️⃣ Указывайте реальную цену без обмана\n"
+        "3️⃣ Контакт для связи обязателен\n"
+        "4️⃣ Фото должны быть живые, без скриншотов\n"
+        "5️⃣ Один автомобиль — одно объявление\n\n"
+        "❗ Объявления с фейковыми данными не публикуются",
         parse_mode="Markdown"
     )
 
@@ -59,9 +60,16 @@ async def rules(callback: types.CallbackQuery):
 @dp.callback_query(lambda c: c.data == "add_ad")
 async def add_ad(callback: types.CallbackQuery):
     ads_data[callback.from_user.id] = {"step": 1, "data": {}}
-    await callback.message.answer("🚗 Введите марку и модель автомобиля:")
+    await callback.message.answer(
+        "🚗 *Марка и модель*\n\n"
+        "Например:\n"
+        "• Lada Vesta\n"
+        "• Toyota Camry\n"
+        "• BMW 3 Series",
+        parse_mode="Markdown"
+    )
 
-# --- Обработка сообщений по шагам ---
+# --- Обработка сообщений ---
 @dp.message()
 async def process_message(msg: types.Message):
     user_id = msg.from_user.id
@@ -71,72 +79,89 @@ async def process_message(msg: types.Message):
     step = ads_data[user_id]["step"]
     ad = ads_data[user_id]["data"]
 
-    # Шаг 1: марка и модель
     if step == 1:
         ad["model"] = msg.text
         ads_data[user_id]["step"] = 2
-        await msg.answer("Введите год выпуска (только цифры):")
+        await msg.answer(
+            "📅 *Год выпуска автомобиля*\n\n"
+            "Пример:\n"
+            "2014",
+            parse_mode="Markdown"
+        )
 
-    # Шаг 2: год
     elif step == 2:
         if not msg.text.isdigit():
-            await msg.answer("Пожалуйста, введите только цифры для года выпуска.")
+            await msg.answer("Введите год **только цифрами**.")
             return
         ad["year"] = msg.text
         ads_data[user_id]["step"] = 3
-        await msg.answer("Введите цену (например: 450.000 ₽):")
+        await msg.answer(
+            "💰 *Цена автомобиля*\n\n"
+            "Формат:\n"
+            "450.000",
+            parse_mode="Markdown"
+        )
 
-    # Шаг 3: цена
     elif step == 3:
         if not msg.text.replace(".", "").isdigit():
-            await msg.answer("Пожалуйста, введите только цифры для цены.")
+            await msg.answer("Цена должна содержать только цифры.")
             return
         ad["price"] = msg.text
         ads_data[user_id]["step"] = 4
-        await msg.answer("Введите пробег (км, только цифры):")
+        await msg.answer(
+            "📏 *Пробег автомобиля (км)*\n\n"
+            "Пример:\n"
+            "185000",
+            parse_mode="Markdown"
+        )
 
-    # Шаг 4: пробег
     elif step == 4:
         if not msg.text.isdigit():
-            await msg.answer("Пожалуйста, введите только цифры для пробега.")
+            await msg.answer("Пробег вводится **только цифрами**.")
             return
         ad["mileage"] = msg.text
         ads_data[user_id]["step"] = 5
-        await msg.answer("Отправьте фото автомобиля (до 10). Когда закончите, напишите 'стоп'.")
+        await msg.answer(
+            "📸 *Фотографии автомобиля*\n\n"
+            "• До 10 фото\n"
+            "• Общий вид, салон, состояние\n\n"
+            "Когда закончите — напишите *стоп*",
+            parse_mode="Markdown"
+        )
 
-    # Шаг 5: фото
     elif step == 5:
         if msg.photo:
             ad.setdefault("photos", []).append(msg.photo[-1].file_id)
-            if len(ad["photos"]) < 10:
-                await msg.answer(f"Фото принято ({len(ad['photos'])}/10). Можете прислать ещё или напишите 'стоп'.")
-            else:
-                ads_data[user_id]["step"] = 6
-                await msg.answer("Фото завершены. Введите контакт:")
+            await msg.answer(f"Фото принято ({len(ad['photos'])}/10).")
         elif msg.text.lower() == "стоп":
             ads_data[user_id]["step"] = 6
-            await msg.answer("Фото завершены. Введите контакт:")
-        else:
-            await msg.answer("Отправьте фото или напишите 'стоп'.")
+            await msg.answer(
+                "📞 *Контакт для связи*\n\n"
+                "Телефон или @username",
+                parse_mode="Markdown"
+            )
 
-    # Шаг 6: контакт
     elif step == 6:
         ad["contact"] = msg.text
         ads_data[user_id]["step"] = 7
-        await msg.answer("Введите краткое описание автомобиля:")
+        await msg.answer(
+            "📝 *Описание от владельца*\n\n"
+            "Пример:\n"
+            "Хорошее состояние, без ДТП,\n"
+            "обслуживался вовремя.",
+            parse_mode="Markdown"
+        )
 
-    # Шаг 7: описание
     elif step == 7:
         ad["description"] = msg.text
         pending_ads[user_id] = ad
 
         text = (
-            f"Новое объявление от {msg.from_user.full_name}:\n\n"
-            f"🚗 {ad['model']}\n"
-            f"📅 {ad['year']}\n"
-            f"💰 {ad['price']} ₽\n"
-            f"📏 {ad['mileage']} км\n"
-            f"📞 {ad['contact']}\n"
+            f"🚗 *{ad['model']}*\n"
+            f"📅 Год: {ad['year']}\n"
+            f"💰 Цена: {ad['price']} ₽\n"
+            f"📏 Пробег: {ad['mileage']} км\n"
+            f"📞 Контакт: {ad['contact']}\n\n"
             f"📝 {ad['description']}"
         )
 
@@ -144,53 +169,51 @@ async def process_message(msg: types.Message):
 
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text="✅ Опубликовать в канал", callback_data=f"publish_{user_id}")],
-                [InlineKeyboardButton(text="❌ Удалить объявление", callback_data=f"delete_{user_id}")]
+                [InlineKeyboardButton(text="✅ Опубликовать", callback_data=f"publish_{user_id}")],
+                [InlineKeyboardButton(text="❌ Отклонить", callback_data=f"delete_{user_id}")]
             ]
         )
 
         if media:
             await bot.send_media_group(chat_id=ADMIN_ID, media=media)
 
-        await bot.send_message(chat_id=ADMIN_ID, text=text, reply_markup=keyboard)
-        await msg.answer("Объявление принято и отправлено на модерацию. Спасибо!")
+        await bot.send_message(ADMIN_ID, text, reply_markup=keyboard, parse_mode="Markdown")
+        await msg.answer(
+            "✅ *Объявление отправлено на модерацию*\n\n"
+            "После проверки оно появится в канале.",
+            parse_mode="Markdown"
+        )
         del ads_data[user_id]
 
-# --- Действия админа ---
+# --- Админ ---
 @dp.callback_query(lambda c: c.data.startswith("publish_") or c.data.startswith("delete_"))
-async def handle_admin_actions(cq: types.CallbackQuery):
-    if cq.from_user.id != ADMIN_ID:
-        await cq.answer("Только админ может управлять объявлениями.")
+async def admin_actions(cq: types.CallbackQuery):
+    user_id = int(cq.data.split("_")[1])
+    ad = pending_ads.get(user_id)
+
+    if not ad:
+        await cq.answer("Объявление не найдено.")
         return
 
-    data = cq.data
-    user_id = int(data.split("_")[1])
-    if data.startswith("publish_"):
-        ad = pending_ads.get(user_id)
-        if ad:
-            text = (
-                f"🚗 {ad['model']}\n"
-                f"📅 {ad['year']}\n"
-                f"💰 {ad['price']} ₽\n"
-                f"📏 {ad['mileage']} км\n"
-                f"📞 {ad['contact']}\n"
-                f"📝 {ad['description']}"
-            )
-            media = [InputMediaPhoto(media=pid) for pid in ad.get("photos", [])]
-            if media:
-                await bot.send_media_group(chat_id=CHANNEL_ID, media=media)
-            await bot.send_message(chat_id=CHANNEL_ID, text=text)
-            del pending_ads[user_id]
-            await cq.message.edit_reply_markup()
-            await cq.answer("Объявление опубликовано!")
-        else:
-            await cq.answer("Объявление не найдено.")
-    elif data.startswith("delete_"):
-        pending_ads.pop(user_id, None)
-        await cq.message.edit_reply_markup()
-        await cq.answer("Объявление удалено.")
+    text = (
+        f"🚗 *{ad['model']}*\n"
+        f"📅 {ad['year']}\n"
+        f"💰 {ad['price']} ₽\n"
+        f"📏 {ad['mileage']} км\n"
+        f"📞 {ad['contact']}\n\n"
+        f"📝 {ad['description']}"
+    )
 
-# --- Запуск бота ---
+    media = [InputMediaPhoto(media=pid) for pid in ad.get("photos", [])]
+    if media:
+        await bot.send_media_group(CHANNEL_ID, media)
+    await bot.send_message(CHANNEL_ID, text, parse_mode="Markdown")
+
+    pending_ads.pop(user_id, None)
+    await cq.message.edit_reply_markup()
+    await cq.answer("Готово")
+
+# --- Запуск ---
 async def main():
     await dp.start_polling(bot)
 
