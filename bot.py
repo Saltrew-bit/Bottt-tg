@@ -47,9 +47,9 @@ async def rules(callback: types.CallbackQuery):
         "1. Авто в Рязани или области\n"
         "2. Реальная цена\n"
         "3. Контакт обязателен\n"
-        "4. Укажите точное описание авто\n"
-        "5. Фото автомобиля должны быть качественными\n\n"
-        "Соблюдение этих правил ускоряет публикацию!",
+        "4. Краткое, но информативное описание\n"
+        "5. Фото автомобиля обязательно\n\n"
+        "Следуйте этим правилам, чтобы объявление прошло модерацию.",
         parse_mode="Markdown"
     )
 
@@ -57,8 +57,7 @@ async def rules(callback: types.CallbackQuery):
 @dp.callback_query(lambda c: c.data == "add_ad")
 async def add_ad(callback: types.CallbackQuery):
     ads_data[callback.from_user.id] = {"step": 1, "data": {}}
-    await callback.message.answer("🚗 Введите марку и модель автомобиля:\n_Пример: Toyota Camry_",
-                                  parse_mode="Markdown")
+    await callback.message.answer("🚗 Введите марку и модель автомобиля (например: Toyota Camry):")
 
 # --- Обработка сообщений по шагам ---
 @dp.message()
@@ -74,8 +73,7 @@ async def process_message(msg: types.Message):
     if step == 1:
         ad["model"] = msg.text
         ads_data[user_id]["step"] = 2
-        await msg.answer("📅 Введите год выпуска (только цифры):\n_Пример: 2018_",
-                         parse_mode="Markdown")
+        await msg.answer("📅 Введите год выпуска (только цифры, например: 2015):")
 
     # Шаг 2: год
     elif step == 2:
@@ -84,8 +82,7 @@ async def process_message(msg: types.Message):
             return
         ad["year"] = msg.text
         ads_data[user_id]["step"] = 3
-        await msg.answer("💰 Введите цену автомобиля (только цифры, разделитель точка)\n_Пример: 450.000_",
-                         parse_mode="Markdown")
+        await msg.answer("💰 Введите цену (только цифры, например: 450.000):")
 
     # Шаг 3: цена
     elif step == 3:
@@ -94,8 +91,7 @@ async def process_message(msg: types.Message):
             return
         ad["price"] = msg.text
         ads_data[user_id]["step"] = 4
-        await msg.answer("📏 Введите пробег автомобиля (только цифры в км)\n_Пример: 120000_",
-                         parse_mode="Markdown")
+        await msg.answer("📏 Введите пробег в км (только цифры, например: 120000):")
 
     # Шаг 4: пробег
     elif step == 4:
@@ -104,37 +100,35 @@ async def process_message(msg: types.Message):
             return
         ad["mileage"] = msg.text
         ads_data[user_id]["step"] = 5
-        await msg.answer("📸 Отправьте фото автомобиля (до 10). Когда закончите, напишите 'стоп'.\n"
-                         "_Можно отправлять по одному или несколько фото сразу._",
-                         parse_mode="Markdown")
+        await msg.answer("📷 Отправьте фото автомобиля (до 10). Когда закончите, напишите 'стоп'.")
 
     # Шаг 5: фото
     elif step == 5:
         if msg.photo:
             ad.setdefault("photos", []).append(msg.photo[-1].file_id)
             if len(ad["photos"]) < 10:
-                await msg.answer(f"✅ Фото принято ({len(ad['photos'])}/10). Можете прислать ещё или напишите 'стоп'.")
+                await msg.answer(f"Фото принято ({len(ad['photos'])}/10). Можете прислать ещё или напишите 'стоп'.")
             else:
                 ads_data[user_id]["step"] = 6
-                await msg.answer("Все фото загружены. Введите контакт:")
+                await msg.answer("Все фото получены. Введите контакт (например: @username или +7XXXXXXXXXX):")
         elif msg.text.lower() == "стоп":
             ads_data[user_id]["step"] = 6
-            await msg.answer("Все фото загружены. Введите контакт:")
+            await msg.answer("Все фото получены. Введите контакт (например: @username или +7XXXXXXXXXX):")
         else:
-            await msg.answer("⚠️ Отправьте фото или напишите 'стоп'.")
+            await msg.answer("Отправьте фото или напишите 'стоп'.")
 
     # Шаг 6: контакт
     elif step == 6:
         ad["contact"] = msg.text
         ads_data[user_id]["step"] = 7
-        await msg.answer("📝 Введите краткое описание автомобиля:\n_Пример: Отличное состояние, 1 владелец_",
-                         parse_mode="Markdown")
+        await msg.answer("📝 Введите краткое описание автомобиля (например: Отличное состояние, один владелец):")
 
     # Шаг 7: описание
     elif step == 7:
         ad["description"] = msg.text
         pending_ads[user_id] = ad
 
+        # --- Предпросмотр объявления ---
         text_preview = (
             f"📢 *Предпросмотр объявления:*\n\n"
             f"🚗 {ad['model']}\n"
@@ -145,7 +139,7 @@ async def process_message(msg: types.Message):
             f"📝 {ad['description']}"
         )
 
-        media_preview = [InputMediaPhoto(pid) for pid in ad.get("photos", [])]
+        media_preview = [InputMediaPhoto(media=pid) for pid in ad.get("photos", [])]
 
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
@@ -154,14 +148,18 @@ async def process_message(msg: types.Message):
             ]
         )
 
-        # Предпросмотр пользователю
+        # Отправляем предпросмотр пользователю
         if media_preview:
-            await bot.send_media_group(chat_id=user_id, media=media_preview)
-        await bot.send_message(chat_id=user_id, text=text_preview, reply_markup=keyboard,
-                               parse_mode="Markdown")
+            try:
+                await bot.send_media_group(chat_id=user_id, media=media_preview)
+                await asyncio.sleep(0.2)  # небольшая задержка
+            except Exception as e:
+                await msg.answer(f"⚠️ Не удалось отправить фото: {e}")
+
+        await bot.send_message(chat_id=user_id, text=text_preview, reply_markup=keyboard, parse_mode="Markdown")
         del ads_data[user_id]
 
-# --- Действия после предпросмотра ---
+# --- Действия пользователя на предпросмотр ---
 @dp.callback_query(lambda c: c.data.startswith("submit_") or c.data.startswith("cancel_"))
 async def handle_preview_actions(cq: types.CallbackQuery):
     user_id = int(cq.data.split("_")[1])
@@ -169,8 +167,7 @@ async def handle_preview_actions(cq: types.CallbackQuery):
     if cq.data.startswith("submit_"):
         ad = pending_ads.get(user_id)
         if ad:
-            text_admin = (
-                f"🚗 Новое объявление от {cq.from_user.full_name}:\n\n"
+            text = (
                 f"🚗 {ad['model']}\n"
                 f"📅 {ad['year']}\n"
                 f"💰 {ad['price']} ₽\n"
@@ -178,16 +175,15 @@ async def handle_preview_actions(cq: types.CallbackQuery):
                 f"📞 {ad['contact']}\n"
                 f"📝 {ad['description']}"
             )
-            media_admin = [InputMediaPhoto(pid) for pid in ad.get("photos", [])]
-            if media_admin:
-                await bot.send_media_group(chat_id=ADMIN_ID, media=media_admin)
-            await bot.send_message(chat_id=ADMIN_ID, text=text_admin)
+            media = [InputMediaPhoto(media=pid) for pid in ad.get("photos", [])]
+            if media:
+                await bot.send_media_group(chat_id=CHANNEL_ID, media=media)
+            await bot.send_message(chat_id=CHANNEL_ID, text=text)
             await cq.message.edit_reply_markup()
             await cq.answer("Объявление отправлено на модерацию!")
+            del pending_ads[user_id]
         else:
             await cq.answer("Объявление не найдено.")
-        return
-
     elif cq.data.startswith("cancel_"):
         pending_ads.pop(user_id, None)
         await cq.message.edit_reply_markup()
