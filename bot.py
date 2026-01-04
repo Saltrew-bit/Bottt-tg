@@ -13,14 +13,13 @@ dp = Dispatcher()
 ads_data = {}
 pending_ads = {}
 
-# --- Функция для оформления карточек ---
-def card(title, content, example=None, warning=None, emoji="📌"):
-    msg = f"┌─{emoji} *{title}*─┐\n{content}"
+# --- Красивое оформление шага ---
+def step_card(title, content, example=None, warning=None, emoji="📌"):
+    msg = f"{emoji} *{title}*\n{content}"
     if example:
         msg += f"\n💡 _Пример_: `{example}`"
     if warning:
         msg += f"\n❌ {warning}"
-    msg += "\n└─────────────┘"
     return msg
 
 # --- Стартовое приветствие ---
@@ -34,18 +33,16 @@ async def start(message: types.Message):
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🚗 Подать объявление", callback_data="add_ad")],
-            [InlineKeyboardButton(text="📜 Правила", callback_data="rules")],
-            [InlineKeyboardButton(text="👨‍💼 Связь с админом", url="https://t.me/saltrew")]
+            [InlineKeyboardButton("🚗 Подать объявление", callback_data="add_ad")],
+            [InlineKeyboardButton("📜 Правила", callback_data="rules")],
+            [InlineKeyboardButton("👨‍💼 Связь с админом", url="https://t.me/saltrew")]
         ]
     )
 
     await message.answer(
-        card(
-            "Добро пожаловать!",
-            "Я официальный бот канала *AutoHub62*.\nПомогаю удобно размещать объявления о продаже авто.\n\nВыберите действие ниже ⬇️",
-            emoji="👋"
-        ),
+        step_card("Добро пожаловать!", 
+                  "Я бот канала *AutoHub62*.\nПомогаю удобно размещать объявления о продаже авто.\nВыберите действие ниже ⬇️", 
+                  emoji="👋"),
         reply_markup=keyboard,
         parse_mode="Markdown"
     )
@@ -54,7 +51,7 @@ async def start(message: types.Message):
 @dp.callback_query(lambda c: c.data == "rules")
 async def rules(callback: types.CallbackQuery):
     await callback.message.answer(
-        card(
+        step_card(
             "Правила размещения объявлений",
             "✅ Авто реально в Рязани или области\n"
             "✅ Указывайте реальную цену\n"
@@ -72,7 +69,7 @@ async def rules(callback: types.CallbackQuery):
 async def add_ad(callback: types.CallbackQuery):
     ads_data[callback.from_user.id] = {"step": 1, "data": {}}
     await callback.message.answer(
-        card("Шаг 1: Марка и модель", "Введите марку и модель автомобиля", example="Toyota Camry", emoji="🚗"),
+        step_card("Шаг 1: Марка и модель", "Введите марку и модель автомобиля", example="Toyota Camry", emoji="🚗"),
         parse_mode="Markdown"
     )
 
@@ -89,31 +86,31 @@ async def process_message(msg: types.Message):
     if step == 1:
         ad["model"] = msg.text
         ads_data[user_id]["step"] = 2
-        await msg.answer(card("Шаг 2: Год выпуска", "Введите год автомобиля", example="2012", emoji="📅"), parse_mode="Markdown")
+        await msg.answer(step_card("Шаг 2: Год выпуска", "Введите год автомобиля", example="2015", emoji="📅"), parse_mode="Markdown")
 
     elif step == 2:
         if not msg.text.isdigit():
-            await msg.answer(card("Ошибка", "Год должен быть числом", warning="Введите только цифры для года выпуска", emoji="❌"))
+            await msg.answer(step_card("Ошибка", "Год должен быть числом", warning="Введите только цифры для года выпуска", emoji="❌"))
             return
         ad["year"] = msg.text
         ads_data[user_id]["step"] = 3
-        await msg.answer(card("Шаг 3: Цена", "Введите стоимость автомобиля", example="450.000", emoji="💰"), parse_mode="Markdown")
+        await msg.answer(step_card("Шаг 3: Цена", "Введите стоимость автомобиля", example="450.000", emoji="💰"), parse_mode="Markdown")
 
     elif step == 3:
         if not msg.text.replace(".", "").isdigit():
-            await msg.answer(card("Ошибка", "Цена должна быть числом", warning="Точку можно использовать как разделитель", emoji="❌"))
+            await msg.answer(step_card("Ошибка", "Цена должна быть числом", warning="Точку можно использовать как разделитель", emoji="❌"))
             return
         ad["price"] = msg.text
         ads_data[user_id]["step"] = 4
-        await msg.answer(card("Шаг 4: Пробег", "Введите пробег автомобиля в км", example="120000", emoji="📏"), parse_mode="Markdown")
+        await msg.answer(step_card("Шаг 4: Пробег", "Введите пробег автомобиля в км", example="120000", emoji="📏"), parse_mode="Markdown")
 
     elif step == 4:
         if not msg.text.isdigit():
-            await msg.answer(card("Ошибка", "Пробег должен быть числом", warning="Введите только цифры", emoji="❌"))
+            await msg.answer(step_card("Ошибка", "Пробег должен быть числом", warning="Введите только цифры", emoji="❌"))
             return
         ad["mileage"] = msg.text
         ads_data[user_id]["step"] = 5
-        await msg.answer(card("Шаг 5: Фотографии", "Отправьте до 10 фото автомобиля.\nКогда закончите, напишите 'стоп'", emoji="📸"), parse_mode="Markdown")
+        await msg.answer(step_card("Шаг 5: Фотографии", "Отправьте до 10 фото автомобиля. Когда закончите, напишите 'стоп'", emoji="📸"), parse_mode="Markdown")
 
     elif step == 5:
         if msg.photo:
@@ -122,47 +119,48 @@ async def process_message(msg: types.Message):
                 await msg.answer(f"✅ Фото принято ({len(ad['photos'])}/10). Отправьте ещё или напишите 'стоп'.")
             else:
                 ads_data[user_id]["step"] = 6
-                await msg.answer(card("Готово!", "Все фото получены. Введите контакт:", emoji="📞"), parse_mode="Markdown")
+                await msg.answer(step_card("Готово!", "Все фото получены. Введите контакт:", emoji="📞"), parse_mode="Markdown")
         elif msg.text.lower() == "стоп":
             ads_data[user_id]["step"] = 6
-            await msg.answer(card("Готово!", "Все фото получены. Введите контакт:", emoji="📞"), parse_mode="Markdown")
+            await msg.answer(step_card("Готово!", "Все фото получены. Введите контакт:", emoji="📞"), parse_mode="Markdown)
         else:
-            await msg.answer(card("Ошибка", "Отправьте фото или напишите 'стоп'", emoji="❌"))
+            await msg.answer(step_card("Ошибка", "Отправьте фото или напишите 'стоп'", emoji="❌"))
 
     elif step == 6:
         ad["contact"] = msg.text
         ads_data[user_id]["step"] = 7
-        await msg.answer(card("Шаг 6: Контакт", "Введите номер телефона или Telegram", example="+7 900 123-45-67 или @username", emoji="📞"), parse_mode="Markdown")
+        await msg.answer(step_card("Шаг 6: Контакт", "Введите номер телефона или Telegram", example="+7 900 123-45-67 или @username", emoji="📞"), parse_mode="Markdown")
 
     elif step == 7:
         ad["description"] = msg.text
         pending_ads[user_id] = ad
 
-        text = (
-            "┌─👀 *Предпросмотр объявления*─┐\n"
-            f"🚗 Модель: *{ad['model']}*\n"
-            f"📅 Год: {ad['year']}\n"
-            f"💰 Цена: *{ad['price']} ₽*\n"
-            f"📏 Пробег: {ad['mileage']} км\n"
-            f"📞 Контакт: {ad['contact']}\n"
-            f"📝 Описание: {ad['description']}\n"
-            "└─────────────┘"
+        # --- Предпросмотр объявления ---
+        text_preview = (
+            f"📋 *Предпросмотр объявления*\n\n"
+            f"🚗 *Модель*: {ad['model']}\n"
+            f"📅 *Год*: {ad['year']}\n"
+            f"💰 *Цена*: {ad['price']} ₽\n"
+            f"📏 *Пробег*: {ad['mileage']} км\n"
+            f"📞 *Контакт*: {ad['contact']}\n"
+            f"📝 *Описание*: {ad['description']}\n\n"
+            f"После проверки администратором объявление будет опубликовано в канале."
         )
 
         media = [InputMediaPhoto(media=pid) for pid in ad.get("photos", [])]
 
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text="✅ Опубликовать в канал", callback_data=f"publish_{user_id}")],
-                [InlineKeyboardButton(text="❌ Удалить объявление", callback_data=f"delete_{user_id}")]
+                [InlineKeyboardButton(text="✅ Отправить на модерацию", callback_data=f"publish_{user_id}")],
+                [InlineKeyboardButton(text="❌ Отменить", callback_data=f"delete_{user_id}")]
             ]
         )
 
         if media:
             await bot.send_media_group(chat_id=ADMIN_ID, media=media)
 
-        await bot.send_message(chat_id=ADMIN_ID, text=text, reply_markup=keyboard, parse_mode="Markdown")
-        await msg.answer(card("Готово!", "Объявление отправлено на модерацию!", emoji="🎉"), parse_mode="Markdown")
+        await bot.send_message(chat_id=ADMIN_ID, text=text_preview, reply_markup=keyboard, parse_mode="Markdown")
+        await msg.answer(step_card("Готово!", "Объявление отправлено на модерацию!", emoji="🎉"), parse_mode="Markdown")
         del ads_data[user_id]
 
 # --- Действия админа ---
