@@ -4,16 +4,15 @@ from aiogram.filters import CommandStart
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto
 
 BOT_TOKEN = "8219073859:AAH2qL0-w9mQTxGOFNqv-svRALHFQ8MDorw"
-ADMIN_ID = 1688416529  # твой Telegram ID для модерации
-CHANNEL_ID = "@AutoHub62Channel"  # канал для публикации
+ADMIN_ID = 1688416529
+CHANNEL_ID = "@AutoHub62Channel"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-user_states = {}      # хранит состояние пользователей, которые подают объявления
-pending_ads = {}      # объявления, ожидающие модерации
+user_states = {}
+pending_ads = {}
 
-# ===== /start =====
 @dp.message(CommandStart())
 async def start(message: types.Message):
     if message.chat.type == "private":
@@ -37,7 +36,6 @@ async def start(message: types.Message):
         parse_mode="Markdown"
     )
 
-# ===== Правила =====
 @dp.callback_query(lambda c: c.data == "rules")
 async def rules(callback: types.CallbackQuery):
     await callback.message.answer(
@@ -48,14 +46,12 @@ async def rules(callback: types.CallbackQuery):
         parse_mode="Markdown"
     )
 
-# ===== Начало подачи объявления =====
 @dp.callback_query(lambda c: c.data == "add_ad")
 async def add_ad(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     user_states[user_id] = {"step": 1, "data": {}}
     await callback.message.answer("🚗 Введите марку и модель автомобиля:")
 
-# ===== Пошаговая обработка сообщений пользователя =====
 @dp.message()
 async def process_ad(message: types.Message):
     user_id = message.from_user.id
@@ -117,9 +113,55 @@ async def process_ad(message: types.Message):
             f"📞 {ad['contact']}"
         )
 
-        media = [types.InputMediaPhoto(pid) for pid in ad.get("photos", [])]
+        media = [InputMediaPhoto(pid) for pid in ad.get("photos", [])]
         if media:
             await bot.send_media_group(ADMIN_ID, media)
+
         await bot.send_message(
             ADMIN_ID,
             text,
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton("✅ Опубликовать в канал", callback_data=f"publish_{user_id}")],
+                [InlineKeyboardButton("❌ Удалить объявление", callback_data=f"delete_{user_id}")]
+            ])
+        )
+
+        await message.answer("✅ Объявление принято и отправлено на модерацию.")
+
+@dp.callback_query(lambda c: c.data.startswith("publish_") or c.data.startswith("delete_"))
+async def handle_admin(callback: types.CallbackQuery):
+    user_id = int(callback.data.split("_")[1])
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Только админ может управлять объявлениями.")
+        return
+
+    if callback.data.startswith("publish_"):
+        ad = pending_ads.get(user_id)
+        if ad:
+            text = (
+                f"🚗 {ad['model']}\n"
+                f"📅 {ad['year']}\n"
+                f"💰 {ad['price']} ₽\n"
+                f"📏 {ad['mileage']} км\n"
+                f"📝 {ad['description']}\n"
+                f"📞 {ad['contact']}"
+            )
+            media = [InputMediaPhoto(pid) for pid in ad.get("photos", [])]
+            if media:
+                await bot.send_media_group(CHANNEL_ID, media)
+            await bot.send_message(CHANNEL_ID, text)
+            del pending_ads[user_id]
+            await callback.message.edit_reply_markup()
+            await callback.answer("Объявление опубликовано!")
+        else:
+            await callback.answer("Объявление не найдено.")
+    elif callback.data.startswith("delete_"):
+        pending_ads.pop(user_id, None)
+        await callback.message.edit_reply_markup()
+        await callback.answer("Объявление удалено.")
+
+async def main():
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
