@@ -3,7 +3,7 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.filters import CommandStart
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto
 
-BOT_TOKEN = "ВАШ_BOT_TOKEN"
+BOT_TOKEN = "8219073859:AAH2qL0-w9mQTxGOFNqv-svRALHFQ8MDorw"
 ADMIN_ID = 1688416529
 CHANNEL_ID = "@AutoHub62Channel"
 
