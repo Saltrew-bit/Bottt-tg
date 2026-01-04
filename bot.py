@@ -2,36 +2,35 @@ import os
 import asyncio
 import logging
 from aiogram import Bot, Dispatcher, types
-from aiogram.filters import CommandStart
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto
+from aiogram.filters import Command
 
-BOT_TOKEN = "8219073859:AAH2qL0-w9mQTxGOFNqv-svRALHFQ8MDorw"
-ADMIN_ID = 1688416529
+API_TOKEN = os.getenv("API_TOKEN")  # либо вставь прямо токен
+ADMIN_ID = 1688416529  # твой Telegram ID
+CHANNEL_ID = "@AutoHub62Channel"  # канал для публикации
 
 logging.basicConfig(level=logging.INFO)
 
-bot = Bot(token=BOT_TOKEN)
+bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 
 ads_data = {}
 pending_ads = {}
 
-@dp.message(CommandStart())
-async def start(message: types.Message):
-    if message.chat.type == "private":
+@dp.message(Command(commands=["start"]))
+async def start(msg: types.Message):
+    if msg.chat.type == "private":
         try:
-            await message.delete()
-        except:
+            await msg.delete()
+        except Exception:
             pass
 
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton("🚗 Подать объявление", callback_data="add_ad")],
-            [InlineKeyboardButton("📜 Правила", callback_data="rules")],
-            [InlineKeyboardButton("👨‍💼 Связь с админом", url="https://t.me/saltrew")]
-        ]
-    )
-    await message.answer(
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton("🚗 Подать объявление", callback_data="new_ad")],
+        [InlineKeyboardButton("📜 Правила", callback_data="rules")],
+        [InlineKeyboardButton("👨‍💼 Связь с админом", url="https://t.me/saltrew")]
+    ])
+    await msg.answer(
         "👋 Здравствуйте!\n\n"
         "Я официальный бот канала **AutoHub62**.\n"
         "Помогаю удобно размещать объявления о продаже автомобилей.\n\n"
@@ -40,21 +39,20 @@ async def start(message: types.Message):
         parse_mode="Markdown"
     )
 
-@dp.callback_query(lambda c: c.data == "rules")
-async def rules(callback: types.CallbackQuery):
-    await callback.message.answer(
-        "📜 *Правила размещения объявлений:*\n\n"
-        "• Авто в Рязани или области\n"
-        "• Реальная цена\n"
-        "• Контакт обязателен",
-        parse_mode="Markdown"
-    )
-
-@dp.callback_query(lambda c: c.data == "add_ad")
-async def add_ad(callback: types.CallbackQuery):
-    user_id = callback.from_user.id
-    ads_data[user_id] = {"step": 1, "data": {}}
-    await callback.message.answer("🚗 Введите марку и модель автомобиля:")
+@dp.callback_query(lambda c: c.data in ["rules", "new_ad"])
+async def handle_buttons(cq: types.CallbackQuery):
+    if cq.data == "rules":
+        await cq.message.answer(
+            "📜 *Правила подачи объявления:*\n"
+            "1. Все поля обязательны\n"
+            "2. Фото — до 10 шт.\n"
+            "3. Указывайте реальные цены\n"
+            "4. Контакт обязателен",
+            parse_mode="Markdown"
+        )
+    elif cq.data == "new_ad":
+        ads_data[cq.from_user.id] = {"step": 1, "data": {}}
+        await cq.message.answer("Введите марку и модель автомобиля:")
 
 @dp.message()
 async def process_message(msg: types.Message):
@@ -83,7 +81,7 @@ async def process_message(msg: types.Message):
     elif step == 5:
         ad["description"] = msg.text
         ads_data[user_id]["step"] = 6
-        await msg.answer("Отправьте фото автомобиля (до 10). Когда закончите, напишите 'стоп'.")
+        await msg.answer("Отправьте фото автомобиля (до 10 шт.). Когда закончите, напишите 'стоп'.")
     elif step == 6:
         if msg.photo:
             ad.setdefault("photos", []).append(msg.photo[-1].file_id)
@@ -111,7 +109,7 @@ async def process_message(msg: types.Message):
             f"📞 {ad['contact']}"
         )
 
-        media = [InputMediaPhoto(pid) for pid in ad.get("photos", [])]
+        media = [InputMediaPhoto(media=pid) for pid in ad.get("photos", [])]
         pending_ads[user_id] = ad
 
         if media:
@@ -122,7 +120,7 @@ async def process_message(msg: types.Message):
             [InlineKeyboardButton("❌ Удалить объявление", callback_data=f"delete_{user_id}")]
         ])
         await bot.send_message(ADMIN_ID, text, reply_markup=keyboard)
-        await msg.answer("Ваше объявление принято и отправлено на модерацию.")
+        await msg.answer("Ваше объявление успешно создано и отправлено на модерацию!")
         del ads_data[user_id]
 
 @dp.callback_query(lambda c: c.data.startswith("publish_") or c.data.startswith("delete_"))
@@ -144,10 +142,10 @@ async def handle_admin_actions(cq: types.CallbackQuery):
                 f"📝 {ad['description']}\n"
                 f"📞 {ad['contact']}"
             )
-            media = [InputMediaPhoto(pid) for pid in ad.get("photos", [])]
+            media = [InputMediaPhoto(media=pid) for pid in ad.get("photos", [])]
             if media:
-                await bot.send_media_group("@AutoHub62Channel", media)
-            await bot.send_message("@AutoHub62Channel", text)
+                await bot.send_media_group(CHANNEL_ID, media)
+            await bot.send_message(CHANNEL_ID, text)
             del pending_ads[user_id]
             await cq.message.edit_reply_markup()
             await cq.answer("Объявление опубликовано!")
@@ -158,8 +156,5 @@ async def handle_admin_actions(cq: types.CallbackQuery):
         await cq.message.edit_reply_markup()
         await cq.answer("Объявление удалено.")
 
-async def main():
-    await dp.start_polling(bot)
-
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(dp.start_polling(bot))
