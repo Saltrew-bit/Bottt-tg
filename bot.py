@@ -4,16 +4,15 @@ from aiogram.filters import CommandStart
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto
 
 BOT_TOKEN = "8219073859:AAH2qL0-w9mQTxGOFNqv-svRALHFQ8MDorw"
-ADMIN_ID = 1688416529  # твой ID
-CHANNEL_ID = "@AutoHub62Channel"  # канал для публикации
+ADMIN_ID = 1688416529
+CHANNEL_ID = "@AutoHub62Channel"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-ads_data = {}      # данные пользователя на ввод
-pending_ads = {}   # объявления, ожидающие модерации
+ads_data = {}
+pending_ads = {}
 
-# --- стартовое приветствие ---
 @dp.message(CommandStart())
 async def start(message: types.Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -21,23 +20,18 @@ async def start(message: types.Message):
         [InlineKeyboardButton("📜 Правила", callback_data="rules")],
         [InlineKeyboardButton("👨‍💼 Связь с админом", url="https://t.me/saltrew")]
     ])
-
-    await message.answer(
-        "👋 Здравствуйте!\n"
-        "Я официальный бот канала **AutoHub62**.\n"
-        "Выберите действие ниже ⬇️",
-        reply_markup=keyboard,
-        parse_mode="Markdown"
-    )
-
-    if message.chat.type == "private":
-        await asyncio.sleep(0.5)
-        try:
+    try:
+        await message.answer(
+            "👋 Здравствуйте!\nЯ официальный бот канала **AutoHub62**.\nВыберите действие ниже ⬇️",
+            reply_markup=keyboard,
+            parse_mode="Markdown"
+        )
+        if message.chat.type == "private":
+            await asyncio.sleep(0.5)
             await message.delete()
-        except:
-            pass
+    except:
+        pass
 
-# --- обработка кнопок ---
 @dp.callback_query(lambda c: c.data in ["rules", "add_ad"])
 async def handle_buttons(cq: types.CallbackQuery):
     if cq.data == "rules":
@@ -53,7 +47,6 @@ async def handle_buttons(cq: types.CallbackQuery):
         ads_data[user_id] = {"step": 1, "data": {}}
         await cq.message.answer("Введите марку и модель автомобиля:")
 
-# --- пошаговая подача объявления ---
 @dp.message()
 async def process_message(msg: types.Message):
     user_id = msg.from_user.id
@@ -101,7 +94,6 @@ async def process_message(msg: types.Message):
         pending_ads[user_id] = ad
         ads_data.pop(user_id)
 
-        # формируем текст для админа
         text = (
             f"Новое объявление от {msg.from_user.full_name}:\n\n"
             f"🚗 {ad['model']}\n"
@@ -121,9 +113,8 @@ async def process_message(msg: types.Message):
             [InlineKeyboardButton("❌ Удалить объявление", callback_data=f"delete_{user_id}")]
         ])
         await bot.send_message(ADMIN_ID, text, reply_markup=keyboard)
-        await msg.answer("Ваше объявление принято и отправлено на модерацию.")
+        await msg.answer("Ваше объявление приятно и отправлено на модерацию.")
 
-# --- действия админа ---
 @dp.callback_query(lambda c: c.data.startswith(("publish_", "delete_")))
 async def handle_admin(cq: types.CallbackQuery):
     user_id = int(cq.data.split("_")[1])
