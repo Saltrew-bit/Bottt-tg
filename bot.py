@@ -10,11 +10,12 @@ CHANNEL_ID = "@AutoHub62Channel"
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
+# Хранилища объявлений
 ads_data = {}
 pending_ads = {}
 editing_ads = {}
 
-# --- Старт ---
+# -------------------- Стартовое меню --------------------
 @dp.message(CommandStart())
 async def start(message: types.Message):
     keyboard = InlineKeyboardMarkup(
@@ -25,81 +26,88 @@ async def start(message: types.Message):
         ]
     )
     await message.answer(
-        "👋 Здравствуйте!\nЯ бот канала **AutoHub62**.\nВыберите действие:",
-        reply_markup=keyboard,
-        parse_mode="Markdown"
+        "👋 Здравствуйте!\nЯ бот AutoHub62.\nВыберите действие ниже ⬇️",
+        reply_markup=keyboard
     )
 
-# --- Правила ---
+# -------------------- Правила --------------------
 @dp.callback_query(lambda c: c.data == "rules")
-async def rules(cq: types.CallbackQuery):
-    await cq.message.answer(
-        "📜 *Правила размещения:*\n1. Авто в Рязани\n2. Цена в ₽\n3. Контакт обязателен\n4. Фото до 10 шт\n5. Краткое описание приветствуется",
+async def rules(callback: types.CallbackQuery):
+    await callback.message.answer(
+        "📜 *Правила размещения объявлений:*\n\n"
+        "1. Авто должно быть в Рязани или области\n"
+        "2. Цена реальная, например: 450.000 ₽\n"
+        "3. Контакт обязателен\n"
+        "4. Фото до 10 шт.\n"
+        "5. Краткое описание приветствуется",
         parse_mode="Markdown"
     )
-    await cq.answer()
 
-# --- Начало подачи объявления ---
+# -------------------- Начало подачи объявления --------------------
 @dp.callback_query(lambda c: c.data == "add_ad")
-async def add_ad(cq: types.CallbackQuery):
-    user_id = cq.from_user.id
-    ads_data[user_id] = {"step": 1, "data": {}}
-    await cq.message.answer("🚗 Введите марку и модель автомобиля:")
-    await cq.answer()
+async def add_ad(callback: types.CallbackQuery):
+    ads_data[callback.from_user.id] = {"step": 1, "data": {}}
+    await callback.message.answer("🚗 Введите марку и модель автомобиля:")
 
-# --- Обработка сообщений ---
+# -------------------- Обработка сообщений пользователя --------------------
 @dp.message()
 async def process_message(msg: types.Message):
     user_id = msg.from_user.id
     if user_id not in ads_data:
         return
 
-    step = ads_data[user_id]["step"]
-    ad = ads_data[user_id]["data"]
+    step_info = ads_data[user_id]
+    step = step_info["step"]
+    ad = step_info["data"]
 
-    if isinstance(step, str) and step.startswith("edit_"):  # редактирование отдельного поля
+    # Редактирование отдельных полей
+    if isinstance(step, str) and step.startswith("edit_"):
         field = step.replace("edit_", "")
         ad[field] = msg.text
-        await msg.answer(f"Поле *{field}* обновлено. Можете редактировать другие поля или нажать 'Сохранить'.", parse_mode="Markdown")
+        await msg.answer(f"✅ Поле *{field}* обновлено. Можете редактировать другие поля или нажать 'Сохранить'.", parse_mode="Markdown")
         await send_preview_admin(user_id)
-        ads_data.pop(user_id)
+        del ads_data[user_id]
         return
 
-    # --- Пошаговое заполнение ---
+    # -------------------- Шаги подачи объявления --------------------
     if step == 1:
         ad["model"] = msg.text
         ads_data[user_id]["step"] = 2
-        await msg.answer("Введите год выпуска:")
+        await msg.answer("Введите год выпуска (только цифры, например 2015):")
     elif step == 2:
         if not msg.text.isdigit():
-            await msg.answer("Только цифры для года.")
+            await msg.answer("Введите только цифры для года выпуска.")
             return
         ad["year"] = msg.text
         ads_data[user_id]["step"] = 3
-        await msg.answer("Введите цену (например 450.000 ₽):")
+        await msg.answer("Введите цену (например: 450.000 ₽):")
     elif step == 3:
         if not msg.text.replace(".", "").isdigit():
-            await msg.answer("Введите цену числом.")
+            await msg.answer("Введите только цифры для цены.")
             return
         ad["price"] = msg.text
         ads_data[user_id]["step"] = 4
         await msg.answer("Введите пробег (км):")
     elif step == 4:
         if not msg.text.isdigit():
-            await msg.answer("Введите пробег числом.")
+            await msg.answer("Введите только цифры для пробега.")
             return
         ad["mileage"] = msg.text
         ads_data[user_id]["step"] = 5
-        await msg.answer("Отправьте фото (до 10). Напишите 'стоп' когда закончите.")
+        await msg.answer("Отправьте фото автомобиля (до 10). Когда закончите, напишите 'стоп'.")
     elif step == 5:
         if msg.photo:
             ad.setdefault("photos", []).append(msg.photo[-1].file_id)
-            await msg.answer(f"Фото принято ({len(ad['photos'])}/10).")
+            if len(ad["photos"]) < 10:
+                await msg.answer(f"Фото принято ({len(ad['photos'])}/10). Можете прислать ещё или напишите 'стоп'.")
+            else:
+                ads_data[user_id]["step"] = 6
+                await msg.answer("Фото завершены. Введите контакт:")
         elif msg.text.lower() == "стоп":
             ads_data[user_id]["step"] = 6
             await msg.answer("Фото завершены. Введите контакт:")
         else:
-            await msg.answer("Отправьте фото или 'стоп'.")
+            await msg.answer("Отправьте фото или напишите 'стоп'.")
     elif step == 6:
         ad["contact"] = msg.text
         ads_data[user_id]["step"] = 7
@@ -107,34 +115,37 @@ async def process_message(msg: types.Message):
     elif step == 7:
         ad["description"] = msg.text
         pending_ads[user_id] = ad
-        await show_preview_user(user_id)
-        ads_data.pop(user_id)
 
-# --- Предпросмотр пользователю ---
-async def show_preview_user(user_id):
-    ad = pending_ads[user_id]
-    text = (
-        f"📢 *Предварительный просмотр объявления*\n\n"
-        f"🚗 {ad['model']}\n📅 {ad['year']}\n💰 {ad['price']} ₽\n"
-        f"📏 {ad['mileage']} км\n📞 {ad['contact']}\n📝 {ad['description']}"
-    )
-    media = [InputMediaPhoto(media=pid) for pid in ad.get("photos", [])]
+        text_preview = (
+            f"📢 *Предварительный просмотр объявления*\n\n"
+            f"🚗 {ad['model']}\n"
+            f"📅 {ad['year']}\n"
+            f"💰 {ad['price']} ₽\n"
+            f"📏 {ad['mileage']} км\n"
+            f"📞 {ad['contact']}\n"
+            f"📝 {ad['description']}"
+        )
 
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton("✅ Отправить на модерацию", callback_data=f"to_moderation_{user_id}")],
-            [InlineKeyboardButton("❌ Отменить объявление", callback_data=f"cancel_{user_id}")],
-            [InlineKeyboardButton("✏️ Редактировать", callback_data=f"user_edit_{user_id}")]
-        ]
-    )
+        media = [InputMediaPhoto(media=pid) for pid in ad.get("photos", [])]
 
-    if media:
-        await bot.send_media_group(chat_id=user_id, media=media)
-    await bot.send_message(chat_id=user_id, text=text, reply_markup=keyboard, parse_mode="Markdown")
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("✅ Отправить на модерацию", callback_data=f"to_moderation_{user_id}")],
+                [InlineKeyboardButton("✏️ Редактировать", callback_data=f"user_edit_{user_id}")],
+                [InlineKeyboardButton("❌ Отменить объявление", callback_data=f"cancel_{user_id}")]
+            ]
+        )
 
-# --- Действия с кнопок ---
-@dp.callback_query(lambda c: c.data.startswith(("to_moderation_", "cancel_", "user_edit_", "edit_")))
-async def handle_buttons(cq: types.CallbackQuery):
+        if media:
+            await bot.send_media_group(chat_id=user_id, media=media)
+        await bot.send_message(chat_id=user_id, text=text_preview, reply_markup=keyboard, parse_mode="Markdown")
+
+        if user_id in ads_data:
+            del ads_data[user_id]
+
+# -------------------- Действия пользователя и модератора --------------------
+@dp.callback_query(lambda c: c.data.startswith(("to_moderation_", "cancel_", "user_edit_")))
+async def user_and_moderation(cq: types.CallbackQuery):
     data = cq.data
     user_id = int(data.split("_")[-1])
 
@@ -145,14 +156,19 @@ async def handle_buttons(cq: types.CallbackQuery):
             await cq.answer("Объявление не найдено.")
             return
 
-        text = (
-            f"📝 *Объявление на модерацию*\n\n"
-            f"🚗 {ad['model']}\n📅 {ad['year']}\n💰 {ad['price']} ₽\n"
-            f"📏 {ad['mileage']} км\n📞 {ad['contact']}\n📝 {ad['description']}"
+        text_admin = (
+            f"📝 *Новое объявление на модерацию*\n\n"
+            f"🚗 {ad['model']}\n"
+            f"📅 {ad['year']}\n"
+            f"💰 {ad['price']} ₽\n"
+            f"📏 {ad['mileage']} км\n"
+            f"📞 {ad['contact']}\n"
+            f"📝 {ad['description']}"
         )
+
         media = [InputMediaPhoto(media=pid) for pid in ad.get("photos", [])]
 
-        keyboard = InlineKeyboardMarkup(
+        keyboard_admin = InlineKeyboardMarkup(
             inline_keyboard=[
                 [
                     InlineKeyboardButton("✅ Опубликовать", callback_data=f"publish_{user_id}"),
@@ -162,17 +178,19 @@ async def handle_buttons(cq: types.CallbackQuery):
             ]
         )
 
+        editing_ads[user_id] = ad.copy()
+
         if media:
             await bot.send_media_group(chat_id=ADMIN_ID, media=media)
-        await bot.send_message(chat_id=ADMIN_ID, text=text, reply_markup=keyboard, parse_mode="Markdown")
-        await cq.answer("Отправлено на модерацию.")
+        await bot.send_message(chat_id=ADMIN_ID, text=text_admin, reply_markup=keyboard_admin, parse_mode="Markdown")
         await cq.message.edit_reply_markup()
+        await cq.answer("Объявление отправлено на модерацию!")
 
     # Отмена пользователем
     elif data.startswith("cancel_"):
         pending_ads.pop(user_id, None)
         await cq.message.edit_reply_markup()
-        await bot.send_message(user_id, "Объявление отменено. Можете подать заново:", 
+        await bot.send_message(user_id, "Объявление отменено. Можете подать заново:",
                                reply_markup=InlineKeyboardMarkup(
                                    inline_keyboard=[[InlineKeyboardButton("🚗 Подать объявление", callback_data="add_ad")]]
                                ))
@@ -184,21 +202,8 @@ async def handle_buttons(cq: types.CallbackQuery):
         if not ad:
             await cq.answer("Объявление не найдено.")
             return
-
-        ads_data[user_id] = {"step": "edit_model", "data": ad}
-        await cq.message.answer("✏️ Введите новые данные. После изменения нажмите 'Сохранить'.")
-        await send_preview_admin(user_id)
-        await cq.answer()
-
-    # Редактирование модератором
-    elif data.startswith("edit_"):
-        ad = pending_ads.get(user_id)
-        if not ad:
-            await cq.answer("Объявление не найдено.")
-            return
-
         editing_ads[user_id] = ad.copy()
-        keyboard = InlineKeyboardMarkup(
+        keyboard_fields = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton("🚗 Марка/Модель", callback_data=f"edit_field_model_{user_id}")],
                 [InlineKeyboardButton("📅 Год", callback_data=f"edit_field_year_{user_id}")],
@@ -206,15 +211,16 @@ async def handle_buttons(cq: types.CallbackQuery):
                 [InlineKeyboardButton("📏 Пробег", callback_data=f"edit_field_mileage_{user_id}")],
                 [InlineKeyboardButton("📞 Контакт", callback_data=f"edit_field_contact_{user_id}")],
                 [InlineKeyboardButton("📝 Описание", callback_data=f"edit_field_description_{user_id}")],
+                [InlineKeyboardButton("💾 Сохранить", callback_data=f"save_edit_{user_id}")],
                 [InlineKeyboardButton("❌ Отмена", callback_data=f"cancel_edit_{user_id}")]
             ]
         )
-        await cq.message.answer("✏️ Выберите поле для редактирования:", reply_markup=keyboard)
+        await cq.message.answer("✏️ Выберите поле для редактирования:", reply_markup=keyboard_fields)
         await cq.answer()
 
-# --- Редактирование отдельного поля модератором ---
+# -------------------- Редактирование отдельных полей --------------------
 @dp.callback_query(lambda c: c.data.startswith("edit_field_"))
-async def edit_field(cq: types.CallbackQuery):
+async def edit_field_callback(cq: types.CallbackQuery):
     parts = cq.data.split("_")
     field = parts[2]
     user_id = int(parts[3])
@@ -222,79 +228,57 @@ async def edit_field(cq: types.CallbackQuery):
     if not ad:
         await cq.answer("Объявление не найдено.")
         return
+    await cq.message.answer(f"✏️ Введите новое значение для поля *{field}*:", parse_mode="Markdown")
     ads_data[cq.from_user.id] = {"step": f"edit_{field}", "data": ad, "user_id": user_id}
-    await cq.message.answer(f"✏️ Введите новое значение для *{field}*:", parse_mode="Markdown")
     await cq.answer()
 
-# --- Предпросмотр для админа ---
-async def send_preview_admin(user_id):
-    ad = editing_ads.get(user_id, pending_ads.get(user_id))
-    if not ad:
-        return
-
-    text = (
-        f"🖊 *Редактирование объявления*\n\n"
-        f"🚗 {ad['model']}\n📅 {ad['year']}\n💰 {ad['price']} ₽\n"
-        f"📏 {ad['mileage']} км\n📞 {ad['contact']}\n📝 {ad['description']}"
-    )
-    media = [InputMediaPhoto(media=pid) for pid in ad.get("photos", [])]
-
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton("💾 Сохранить", callback_data=f"save_edit_{user_id}")],
-            [InlineKeyboardButton("❌ Отмена", callback_data=f"cancel_edit_{user_id}")]
-        ]
-    )
-
-    if media:
-        await bot.send_media_group(chat_id=ADMIN_ID, media=media)
-    await bot.send_message(chat_id=ADMIN_ID, text=text, reply_markup=keyboard, parse_mode="Markdown")
-
-# --- Сохранение/отмена редактирования ---
+# -------------------- Сохранение редактирования --------------------
 @dp.callback_query(lambda c: c.data.startswith(("save_edit_", "cancel_edit_")))
-async def save_or_cancel(cq: types.CallbackQuery):
+async def handle_edit_save(cq: types.CallbackQuery):
     user_id = int(cq.data.split("_")[2])
     if cq.data.startswith("save_edit_"):
-        ad = editing_ads.pop(user_id, None)
-        if ad:
-            pending_ads[user_id] = ad
+        ad = editing_ads.pop(user_id)
+        pending_ads[user_id] = ad
         await cq.message.edit_reply_markup()
-        await cq.answer("Изменения сохранены.")
+        await cq.answer("Изменения сохранены. Объявление готово к публикации!")
     elif cq.data.startswith("cancel_edit_"):
         editing_ads.pop(user_id, None)
         await cq.message.edit_reply_markup()
         await cq.answer("Редактирование отменено.")
 
-# --- Публикация/удаление ---
+# -------------------- Публикация/отклонение админом --------------------
 @dp.callback_query(lambda c: c.data.startswith(("publish_", "delete_")))
-async def publish_or_delete(cq: types.CallbackQuery):
+async def handle_admin_actions(cq: types.CallbackQuery):
     if cq.from_user.id != ADMIN_ID:
-        await cq.answer("Только админ может.")
+        await cq.answer("Только админ может управлять объявлениями.")
         return
 
     user_id = int(cq.data.split("_")[1])
-    if cq.data.startswith("publish_"):
-        ad = pending_ads.pop(user_id, None)
-        if not ad:
-            await cq.answer("Объявление не найдено.")
-            return
-
+    ad = pending_ads.get(user_id)
+    if cq.data.startswith("publish_") and ad:
         text = (
-            f"🚗 {ad['model']}\n📅 {ad['year']}\n💰 {ad['price']} ₽\n"
-            f"📏 {ad['mileage']} км\n📞 {ad['contact']}\n📝 {ad['description']}"
+            f"🚗 {ad['model']}\n"
+            f"📅 {ad['year']}\n"
+            f"💰 {ad['price']} ₽\n"
+            f"📏 {ad['mileage']} км\n"
+            f"📞 {ad['contact']}\n"
+            f"📝 {ad['description']}"
         )
         media = [InputMediaPhoto(media=pid) for pid in ad.get("photos", [])]
         if media:
             await bot.send_media_group(chat_id=CHANNEL_ID, media=media)
-        await bot.send_message(chat_id=CHANNEL_ID, text=text)
+        msg = await bot.send_message(chat_id=CHANNEL_ID, text=text)
+        await bot.send_message(user_id, f"✅ Ваше объявление опубликовано: [Ссылка]({msg.link})", parse_mode="Markdown")
+        del pending_ads[user_id]
         await cq.message.edit_reply_markup()
-        await cq.answer("Опубликовано!")
-    elif cq.data.startswith("delete_"):
-        pending_ads.pop(user_id, None)
+        await cq.answer("Объявление опубликовано!")
+    elif cq.data.startswith("delete_") and ad:
+        del pending_ads[user_id]
+        await bot.send_message(user_id, "❌ Ваше объявление отклонено модератором.")
         await cq.message.edit_reply_markup()
-        await cq.answer("Удалено!")
+        await cq.answer("Объявление удалено.")
 
-# --- Запуск ---
+# -------------------- Запуск бота --------------------
 async def main():
     await dp.start_polling(bot)
 
