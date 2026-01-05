@@ -3,9 +3,9 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.filters import CommandStart
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto
 
-BOT_TOKEN = "ВАШ_ТОКЕН"
+BOT_TOKEN = "8219073859:AAH2qL0-w9mQTxGOFNqv-svRALHFQ8MDorw"
 ADMIN_ID = 1688416529
-CHANNEL_ID = "8219073859:AAH2qL0-w9mQTxGOFNqv-svRALHFQ8MDorw"
+CHANNEL_ID = "@AutoHub62"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
